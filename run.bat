@@ -1,0 +1,1 @@
+type parser.ps1 | powershell -
