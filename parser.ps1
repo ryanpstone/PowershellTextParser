@@ -1,60 +1,45 @@
-<# Length of column names shouldn't change, so length of header can be hardcoded.
-Source data does not have delimiter between end of header and first datum, so 
-knowing the header length ahead of time is convenient. #>
-$headerLength = 45
+<# Script to add linebreaks to delimited text data. Assumes first value for each row is numeric. #>
+
+<# Necessary info about data. #>
 $numColumns = 8
+$minDigitsInColumn1 = 5
+$delimiter = "^"
 
 <# Filenames. #>
 $dataFile = ".\data.txt"
-$outFile = ".\out.csv"
+$outFile = ".\out.txt"
 
 <# Get contents of unformatted text file, then trim to get rid of trailing spaces. #>
-$contentString = [IO.File]::ReadAllText($dataFile)
-$contentString = $contentString.Trim()
+$rawData = [IO.File]::ReadAllText($dataFile)
+$rawData = $rawData.Trim()
 
-<# Variable to hold output string. #>
-$formattedString = ""
+<# StringBuilder object to hold strings. More efficient than string concatenation. #>
+$contentString = [System.Text.StringBuilder]""
+$contentString.Append($rawData) | Out-Null
+$formattedString = [System.Text.StringBuilder]""
 
-<# Get header.  Length of column names shouldn't change, so length can be a constant. #>
-$header = $contentString.Substring(0, $headerLength)
-$formattedString += $header  + "`r`n"
+<# Set regex pattern.
+Each row starts with a number that has $digitsInColumn1 digits, so we can assume that 
+a row ends right before a number with $digitsInColumn1 digits appears in the substring. 
+We can use that pattern to find a regex match and get the index of the row's end. #>
+$regexColNum = $numColumns - 1
+$regexPattern = "([\w\s]+\$delimiter){$regexColNum}[^\d{$minDigitsInColumn1,]+"
 
-<# Remove header from $contentString. #>
-$contentString = $contentString.Substring($headerLength)
-
-<# Process the data with a loop. #>
-while ($contentString.Length -gt 0)
-{
-    <# Get first line except for last datum. #>
-    for ($i = 0; $i -lt $numColumns - 1; $i++)
-    {
-        <# Don't pass '^' to output file if it's the last datum in the line. #>
-        $firstUpCharIndex = $contentString.IndexOf('^')
-        $datum = $contentString.Substring(0, $firstUpCharIndex + 1)
-        $formattedString += $datum
-        $contentString = $contentString.Substring($datum.Length, $contentString.Length - $datum.Length)
-    }
-    <# Get last datum in row and handle last row. #>
-    $firstUpCharIndex = $contentString.IndexOf('^')
-    if ($firstUpCharIndex -ne -1) 
-    {
-        $datum = $contentString.Substring(0, $firstUpCharIndex)
-        $formattedString += $datum + "`r`n"
-        $contentString = $contentString.Substring($datum.Length + 1, $contentString.Length - $datum.Length - 1)
-    }
-    else 
-    {
-        $formattedString += $contentString 
-        $contentString = ""
-    }
+<# Loop through string, deleting matches from original after adding to formatted version. #>
+while ($contentString -match $regexPattern) {
+    $formattedString.AppendLine($Matches[0]) | Out-Null # $Matches is a hash table generated from -matches
+    <# Delete matched string from original. #>
+    $contentString.Remove(0, $Matches[0].Length) | Out-Null
 }
+
+# Remove trailing newline.
+$formattedString.Remove($formattedString.Length - 2, 2) | Out-Null
 
 <# Create file for formatted text. Delete old file first if it already exists. #>
-if (Test-Path($outFile))
-{
-    Remove-Item $outFile | Out-Null ### Out-Null hides output.
+if (Test-Path($outFile)) {
+    Remove-Item $outFile | Out-Null
 }
-New-Item $outFile | Out-Null
+New-Item $outFile | Out-Null # Piping to Out-Null hides output that would normally be written to shell.
 
 <# Add formatted string to new file. #>
 Add-Content $outFile $formattedString

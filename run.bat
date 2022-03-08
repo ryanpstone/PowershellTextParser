@@ -1,1 +1,3 @@
+@echo Processing data...
+@echo off
 type parser.ps1 | powershell -
