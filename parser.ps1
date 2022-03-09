@@ -1,9 +1,10 @@
 <# Script to add linebreaks to delimited text data. Assumes first value for each row is numeric. #>
 
 <# Necessary info about data. #>
-$numColumns = 8
-$minDigitsInColumn1 = 5
+$numColumns = 12
+$digitsInColumn1 = 7
 $delimiter = "^"
+$columnToMerge = 7
 
 <# Filenames. #>
 $dataFile = ".\data.txt"
@@ -22,8 +23,8 @@ $formattedString = [System.Text.StringBuilder]""
 Each row starts with a number that has $digitsInColumn1 digits, so we can assume that 
 a row ends right before a number with $digitsInColumn1 digits appears in the substring. 
 We can use that pattern to find a regex match and get the index of the row's end. #>
-$regexColNum = $numColumns - 1
-$regexPattern = "([\w\s]+\$delimiter){$regexColNum}[^\d{$minDigitsInColumn1,]+"
+$regexColNum = $numColumns - 1 # Can't do math within a regex pattern
+$regexPattern = "([^$delimiter]*\$delimiter){$regexColNum}[^\d{$digitsInColumn1}]*"
 
 <# Loop through string, deleting matches from original after adding to formatted version. #>
 while ($contentString -match $regexPattern) {
@@ -35,6 +36,12 @@ while ($contentString -match $regexPattern) {
 # Remove trailing newline.
 $formattedString.Remove($formattedString.Length - 2, 2) | Out-Null
 
+# Remove nth column from header by removing delimiter and combining with (n-1)th column's title.
+$regexColNum = $columnToMerge - 1
+$regexPattern = "([^$delimiter]*\$delimiter){$regexColNum}"
+$formattedString -match $regexPattern | Out-Null
+$formattedString.Remove($Matches[0].Length - 1, 1) | Out-Null
+
 <# Create file for formatted text. Delete old file first if it already exists. #>
 if (Test-Path($outFile)) {
     Remove-Item $outFile | Out-Null
@@ -42,4 +49,4 @@ if (Test-Path($outFile)) {
 New-Item $outFile | Out-Null # Piping to Out-Null hides output that would normally be written to shell.
 
 <# Add formatted string to new file. #>
-Add-Content $outFile $formattedString
+Add-Content $outFile $formattedString.ToString()
